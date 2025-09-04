@@ -1,0 +1,56 @@
+* Performance problem
+
+** What does the program do
+
+The =partitions.bin= used to be a 2D image of pixels, with each pixel describing a "q ring", as such:
+
+[[./rings.png]]
+
+Each pixel is an index describing which ring it belongs to, starting at 0 (blue) in the center.
+
+=partitions.bin= contains this 2D image as a list of =Word8= index values. To process it further, we want a different format though: for each partition =p=, we want a list of all pixel indices (as =Int=) for this partition. It's a translation like this:
+
+#+begin_example
+toIndices :: [Word8] -> [[Int]]
+#+end_example
+
+Assuming contiguous indices for the partitions.
+
+The =Minimal.hs= file implements this logic, based on =Data.Vector.Unboxed= for the pixels instead of slow, big Haskell lists.
+
+** The problem
+
+I'd like to make this as fast as possible, and I thought, I could /parallelize/ the work: go through the image "number of partitions" times in parallel and gather the indices. Instead of the plain map:
+
+#+begin_src haskell
+(\partitionNumber -> UV.findIndices (== partitionNumber) pixels) <$> partitionIndices
+#+end_src
+
+...one could do:
+
+#+begin_src haskell
+((\partitionNumber -> UV.findIndices (== partitionNumber) pixels) <$> partitionIndices) `using` parList rseq
+#+end_src
+
+To spark each iteration through the image and gather the results.
+
+This /works/, in the sense that we get sparks, and they are all converted. But the result, for some reason, is /slower/ than before.
+
+I don't know how to debug this problem, and ask for help.
+** How to run it
+
+Easy enough:
+
+#+begin_example
+cabal run problem -- +RTS -s
+#+end_example
+
+To run the program without parallelization (with =-N1=). Takes about 3.2s on my machine.
+
+With parallelization:
+
+#+begin_example
+cabal run problem -- +RTS -s -N
+#+end_example
+
+Takes about 5s on my machine.
